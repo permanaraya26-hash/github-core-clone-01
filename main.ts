@@ -1,6 +1,9 @@
 // The entry <-> env lifecycle, as env/src/wire.ts settles it: bind an ephemeral port, tell the env the
-// port it bound, then poll until the env says the trial is over and exit 0. Keep this file as it is:
-// the suite scores the server app.ts builds, and the lifecycle is the harness's, not the contest's.
+// port it bound, then poll until the env says the trial is over and exit 0. The suite scores the
+// server app.ts builds, and the lifecycle is the harness's, not the contest's — this file keeps the
+// starter's shape and adds one thing the starter lacked: when the env says done, the server's
+// keep-alive connections are closed at once (closeAllConnections) instead of letting server.close()
+// wait on them, so the process exits 0 promptly instead of hanging on an idle connection.
 //
 //   1. MAKEFUN_ENV_URL names the env's origin (http://store:8080 in a trial container). Without it
 //      there is nothing to talk to, so the program exits 1 at once.
@@ -91,6 +94,9 @@ async function main(): Promise<void> {
   process.stdout.write('[entry] registered; waiting for the env to say done\n');
 
   await waitForDone();
+  // The suite holds keep-alive connections; close() alone waits on them, so drop them first
+  // and only then close, so the process exits 0 at once instead of lingering.
+  server.closeAllConnections();
   server.close();
   process.stdout.write('[entry] done\n');
 }
